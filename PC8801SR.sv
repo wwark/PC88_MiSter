@@ -192,7 +192,7 @@ wire fdd_active = |sd_rd[1:0] || |sd_wr[1:0];
 assign LED_USER  = fdd_active;
 assign LED_DISK  = {1'b1, hdd_active};
 
-wire [1:0] ar = status[18:17];
+wire [1:0] ar = status[2:1];
 
 assign VIDEO_ARX = (!ar) ? 12'd4 : (ar - 1'd1);
 assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;

@@ -3,7 +3,6 @@
 ## Work in progress...
 
 ## TODO
-- Fix Custom Aspect ratio
 - Add VScaler
 - Add correct Resolution
 - Add Gamma
