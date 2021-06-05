@@ -2,3 +2,7 @@
 
 ## Work in progress...
 
+## TODO
+- Fix AR
+- Add VScaler
+- Fix Resolution
