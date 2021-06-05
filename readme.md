@@ -3,6 +3,9 @@
 ## Work in progress...
 
 ## TODO
-- Fix AR
+- Fix Custom Aspect ratio
 - Add VScaler
-- Fix Resolution
+- Add correct Resolution
+- Add Gamma
+- Keep forced_scandoubler ? 
+- Add Audio MIX ?

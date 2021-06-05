@@ -192,15 +192,16 @@ wire fdd_active = |sd_rd[1:0] || |sd_wr[1:0];
 assign LED_USER  = fdd_active;
 assign LED_DISK  = {1'b1, hdd_active};
 
-wire [1:0] ar = status[5:4];
+wire [1:0] ar = status[18:17];
 
-assign AUDIO_MIX = status[3:2];
+assign VIDEO_ARX = (!ar) ? 12'd4 : (ar - 1'd1);
+assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
 
 `include "build_id.v" 
 parameter CONF_STR = {
 	"PC8801mk2SR;;",
 	"-;",
-	"O1,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+	"O12,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"O78,Mode,N,N88V1L,N88V1H,N88V2;",
 	"O9,Speed,4MHz,8MHz;",
 	"R6,Reset;",
