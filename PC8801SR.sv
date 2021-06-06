@@ -194,14 +194,12 @@ assign LED_DISK  = {1'b1, hdd_active};
 
 wire [1:0] ar = status[2:1];
 
-assign VIDEO_ARX = (!ar) ? 12'd4 : (ar - 1'd1);
-assign VIDEO_ARY = (!ar) ? 12'd3 : 12'd0;
-
 `include "build_id.v" 
 parameter CONF_STR = {
 	"PC8801mk2SR;;",
 	"-;",
 	"O12,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+	"O34,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"O78,Mode,N,N88V1L,N88V1H,N88V2;",
 	"O9,Speed,4MHz,8MHz;",
 	"R6,Reset;",
@@ -261,7 +259,7 @@ sdramclk_ddr
 
 /////////////////  HPS  ///////////////////////////
 
-wire [63:0] status;
+wire [31:0] status;
 wire  [1:0] buttons;
 
 wire [15:0] joystick_0, joystick_1;
@@ -314,8 +312,7 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .PS2DIV(600), .PS2WE(1), .VDNUM(4)) hps_io
 
 	.buttons(buttons),
 	.status(status),
-	
-	.TIMESTAMP(TIMESTAMP),
+	.status_menumask({en216p}),
 
 	.sd_lba(sd_lba),
 	.sd_rd(sd_rd),
@@ -385,6 +382,9 @@ assign AUDIO_S = 1;
 
 wire disk_led;
 
+wire [7:0] red, green, blue;
+wire HBlank, VBlank, HSync, VSync, ce_pix, vid_de;
+
 PC88MiSTer PC88_top
 (
 	.clk21m(clk_sys),
@@ -446,13 +446,15 @@ PC88MiSTer PC88_top
 	.pDip({clkmode,2'b0,CDisk,c20L,c40C,MTSAVE,cBT,basicmode}),
 	.pPsw(2'b11),
 
-	.pVideoR(VGA_R),
-	.pVideoG(VGA_G),
-	.pVideoB(VGA_B),
-	.pVideoHS(VGA_HS),
-	.pVideoVS(VGA_VS),
-	.pVideoVEn(VGA_DE),
-	.pVideoClk(CE_PIXEL),
+	.pVideoR(red),
+	.pVideoG(green),
+	.pVideoB(blue),
+	.pVideoHS(HSync),
+	.pVideoVS(VSync),
+	.pVideoHB(HBlank),
+	.pVideoVB(VBlank),
+	.pVideoEN(vid_de),
+	.pVideoClk(ce_pix),
 
 	.pSndL(AUDIO_L),
 	.pSndR(AUDIO_R),
@@ -494,5 +496,49 @@ always @(posedge clk_sys) begin
 
 	if((old_mosi ^ SD_MOSI) || (old_miso ^ SD_MISO)) timeout <= 0;
 end
+
+////////////////////////////  VIDEO  ////////////////////////////////////
+
+
+assign VGA_SL = sl[1:0];
+reg en216p = 0;
+always @(posedge CLK_VIDEO) en216p <= ((HDMI_WIDTH == 1920) && (HDMI_HEIGHT == 1080) && !forced_scandoubler && !scale);
+
+wire vga_de;
+video_freak video_freak
+(
+	.*,
+	.VGA_DE_IN(vga_de),
+	.ARX((!ar) ? 12'd4 : (ar - 1'd1)),
+	.ARY((!ar) ? 12'd3 : 12'd0),
+	.CROP_SIZE(en216p ? 10'd216 : 10'd0),
+	.CROP_OFF(0),
+	.SCALE(status[4:3])
+);
+
+wire [2:0] scale = status[17:15];
+wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
+wire       scandoubler = (scale || forced_scandoubler);
+
+wire freeze = 0;
+wire freeze_sync;
+
+video_mixer #(.LINE_LENGTH(640), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
+(
+	.*,
+
+	.VGA_DE(vga_de),
+	.hq2x(scale==1),
+	.HSync(HSync),
+	.HBlank(HBlank),
+	.VSync(VSync),
+	.VBlank(VBlank),
+
+	.R(red),
+	.G(green),
+	.B(blue)
+);
+
+
 
 endmodule
