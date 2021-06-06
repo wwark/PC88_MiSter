@@ -213,6 +213,7 @@ parameter CONF_STR = {
 	"OB,Cols,80,40;",
 	"OC,Lines,25,20;",
 	"OD,Disk boot,Disable,Enable;",
+	"OFH,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"J,Fire 1,Fire 2;",
 	"V,v",`BUILD_DATE
 };
@@ -259,7 +260,7 @@ sdramclk_ddr
 
 /////////////////  HPS  ///////////////////////////
 
-wire [31:0] status;
+wire [63:0] status;
 wire  [1:0] buttons;
 
 wire [15:0] joystick_0, joystick_1;
