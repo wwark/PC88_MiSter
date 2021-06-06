@@ -2020,8 +2020,8 @@ port map(
 
 	--pVideoHB<= not VID_HRTC;
 	--pVideoVB<= not VID_VRTC;
-	pVideoHB<= not HRTC;
-	pVideoVB<= not VRTC;
+	pVideoHB<= HRTC;
+	pVideoVB<= VRTC;
 	
 	CRTC_CURL<=	CURL;
 	CRTC_CURC<=	CURC;

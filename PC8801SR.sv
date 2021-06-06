@@ -522,7 +522,7 @@ wire       scandoubler = (scale || forced_scandoubler);
 wire freeze = 0;
 wire freeze_sync;
 
-video_mixer #(768, 0, 1) mixer
+video_mixer #(640, 0, 1) mixer
 (
 	.CLK_VIDEO(CLK_VIDEO),
 	
@@ -532,7 +532,7 @@ video_mixer #(768, 0, 1) mixer
 
 	.ce_pix(ce_pix),
 	.R(red),
-	.G(gree),
+	.G(green),
 	.B(blue),
 	.HSync(HSync),
 	.VSync(VSync),
