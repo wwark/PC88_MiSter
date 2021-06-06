@@ -65,7 +65,7 @@ port(
 	mist_lba		:out std_logic_vector(31 downto 0);
 	mist_rd			:out std_logic_vector(3 downto 0);
 	mist_wr			:out std_logic_vector(3 downto 0);
-	mist_ack		:in std_logic;
+	mist_ack		:in std_logic_vector(3 downto 0);
 
 	mist_buffaddr	:in std_logic_vector(8 downto 0);
 	mist_buffdout	:in std_logic_vector(7 downto 0);
@@ -86,9 +86,11 @@ port(
 	pVideoR		: out std_logic_vector(7 downto 0);
 	pVideoG		: out std_logic_vector(7 downto 0);
 	pVideoB		: out std_logic_vector(7 downto 0);
-   pVideoHS		: out std_logic;
-   pVideoVS		: out std_logic;
-	pVideoVEn	: out std_logic;
+	pVideoHS		: out std_logic;
+	pVideoVS		: out std_logic;
+	pVideoHB        :out std_logic;
+	pVideoVB        :out std_logic;
+	pVideoEn	: out std_logic;
 	pVideoClk	: out std_logic;
 	pSndL			: out std_logic_vector(15 downto 0);
 	pSndR			: out std_logic_vector(15 downto 0);
@@ -841,7 +843,7 @@ port(
 	mist_lba		:out std_logic_vector(31 downto 0);
 	mist_rd			:out std_logic_vector(3 downto 0);
 	mist_wr			:out std_logic_vector(3 downto 0);
-	mist_ack		:in std_logic;
+	mist_ack		:in std_logic_vector(3 downto 0);
 
 	mist_buffaddr	:in std_logic_vector(8 downto 0);
 	mist_buffdout	:in std_logic_vector(7 downto 0);
@@ -1364,6 +1366,8 @@ signal	vidB8	:std_logic_vector(7 downto 0);
 signal	vidHS	:std_logic;
 signal	vidVS	:std_logic;
 signal	vidEN	:std_logic;
+signal	VID_HRTC	:std_logic;
+signal	VID_VRTC	:std_logic;
 signal	hdmiclk	:std_logic;
 
 signal	subdat	:std_logic_vector(7 downto 0);
@@ -1979,6 +1983,8 @@ port map(
 	CURM		=>CURM,
 	CBLINK		=>CBLINK,
 	
+	--HRTC		=>VID_HRTC,
+	--VRTC		=>VID_VRTC,
 	HRTC		=>HRTC,
 	VRTC		=>VRTC,
 	
@@ -2009,8 +2015,13 @@ port map(
 	pVideoB<=vidB8;
 	pVideoVS<=vidVS;
 	pVideoHS<=VidHS;
-	pVideoVEn<=vidEN;
+	pVideoEn<=vidEN;
 	pVideoClk<=gclk;
+
+	--pVideoHB<= not VID_HRTC;
+	--pVideoVB<= not VID_VRTC;
+	pVideoHB<= HRTC;
+	pVideoVB<= VRTC;
 	
 	CRTC_CURL<=	CURL;
 	CRTC_CURC<=	CURC;

@@ -39,8 +39,9 @@ module emu
 	output        CE_PIXEL,
 
 	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
-	output  [7:0] VIDEO_ARX,
-	output  [7:0] VIDEO_ARY,
+	//if VIDEO_ARX[12] or VIDEO_ARY[12] is set then [11:0] contains scaled size instead of aspect ratio.
+	output [12:0] VIDEO_ARX,
+	output [12:0] VIDEO_ARY,
 
 	output  [7:0] VGA_R,
 	output  [7:0] VGA_G,
@@ -50,6 +51,40 @@ module emu
 	output        VGA_DE,    // = ~(VBlank | HBlank)
 	output        VGA_F1,
 	output [1:0]  VGA_SL,
+	output        VGA_SCALER, // Force VGA scaler
+
+	input  [11:0] HDMI_WIDTH,
+	input  [11:0] HDMI_HEIGHT,
+	output        HDMI_FREEZE,
+
+`ifdef MISTER_FB
+	// Use framebuffer in DDRAM (USE_FB=1 in qsf)
+	// FB_FORMAT:
+	//    [2:0] : 011=8bpp(palette) 100=16bpp 101=24bpp 110=32bpp
+	//    [3]   : 0=16bits 565 1=16bits 1555
+	//    [4]   : 0=RGB  1=BGR (for 16/24/32 modes)
+	//
+	// FB_STRIDE either 0 (rounded to 256 bytes) or multiple of pixel size (in bytes)
+	output        FB_EN,
+	output  [4:0] FB_FORMAT,
+	output [11:0] FB_WIDTH,
+	output [11:0] FB_HEIGHT,
+	output [31:0] FB_BASE,
+	output [13:0] FB_STRIDE,
+	input         FB_VBL,
+	input         FB_LL,
+	output        FB_FORCE_BLANK,
+
+`ifdef MISTER_FB_PALETTE
+	// Palette control for 8bit modes.
+	// Ignored for other video modes.
+	output        FB_PAL_CLK,
+	output  [7:0] FB_PAL_ADDR,
+	output [23:0] FB_PAL_DOUT,
+	input  [23:0] FB_PAL_DIN,
+	output        FB_PAL_WR,
+`endif
+`endif
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
@@ -64,9 +99,10 @@ module emu
 	// b[0]: osd button
 	output  [1:0] BUTTONS,
 
+	input         CLK_AUDIO, // 24.576 MHz
 	output [15:0] AUDIO_L,
 	output [15:0] AUDIO_R,
-	output        AUDIO_S, // 1 - signed audio samples, 0 - unsigned
+	output        AUDIO_S,   // 1 - signed audio samples, 0 - unsigned
 	output  [1:0] AUDIO_MIX, // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
 
 	//ADC
@@ -105,6 +141,20 @@ module emu
 	output        SDRAM_nRAS,
 	output        SDRAM_nWE,
 
+`ifdef MISTER_DUAL_SDRAM
+	//Secondary SDRAM
+	//Set all output SDRAM_* signals to Z ASAP if SDRAM2_EN is 0
+	input         SDRAM2_EN,
+	output        SDRAM2_CLK,
+	output [12:0] SDRAM2_A,
+	output  [1:0] SDRAM2_BA,
+	inout  [15:0] SDRAM2_DQ,
+	output        SDRAM2_nCS,
+	output        SDRAM2_nCAS,
+	output        SDRAM2_nRAS,
+	output        SDRAM2_nWE,
+`endif
+
 	input         UART_CTS,
 	output        UART_RTS,
 	input         UART_RXD,
@@ -123,28 +173,33 @@ module emu
 	input         OSD_STATUS
 );
 
+///////// Default values for ports not used in this core /////////
+
 assign ADC_BUS  = 'Z;
-assign USER_OUT  = '1;
+assign {UART_RTS, UART_DTR} = 0;
+assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
+assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = '0;  
 
-assign AUDIO_MIX = 0;
-assign VGA_SL    = 0;
-assign VGA_F1    = 0;
-assign {UART_RTS, UART_TXD, UART_DTR} = 0;
-assign {DDRAM_CLK, DDRAM_BURSTCNT, DDRAM_ADDR, DDRAM_DIN, DDRAM_BE, DDRAM_RD, DDRAM_WE} = 0;
+assign VGA_F1 = 0;
+assign VGA_SCALER = 0;
 
-assign LED_USER  = ioctl_download & ~ldr_done;
-assign LED_DISK  = {disk_led, sd_act};
 assign LED_POWER = 0;
-assign BUTTONS   = 0;
- 
-assign VIDEO_ARX = status[1] ? 8'd16 : 8'd4;
-assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3; 
+assign BUTTONS = 0;
+
+//////////////////////////////////////////////////////////////////
+wire hdd_active = sd_rd[2] || sd_wr[2];
+wire fdd_active = |sd_rd[1:0] || |sd_wr[1:0];
+assign LED_USER  = fdd_active;
+assign LED_DISK  = {1'b1, hdd_active};
+
+wire [1:0] ar = status[2:1];
 
 `include "build_id.v" 
 parameter CONF_STR = {
 	"PC8801mk2SR;;",
 	"-;",
-	"O1,Aspect ratio,4:3,16:9;",
+	"O12,Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
+	"O34,Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"O78,Mode,N,N88V1L,N88V1H,N88V2;",
 	"O9,Speed,4MHz,8MHz;",
 	"R6,Reset;",
@@ -158,6 +213,7 @@ parameter CONF_STR = {
 	"OB,Cols,80,40;",
 	"OC,Lines,25,20;",
 	"OD,Disk boot,Disable,Enable;",
+	"OFH,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
 	"J,Fire 1,Fire 2;",
 	"V,v",`BUILD_DATE
 };
@@ -204,7 +260,7 @@ sdramclk_ddr
 
 /////////////////  HPS  ///////////////////////////
 
-wire [31:0] status;
+wire [63:0] status;
 wire  [1:0] buttons;
 
 wire [15:0] joystick_0, joystick_1;
@@ -231,7 +287,7 @@ wire  [31:0] sd_lba;
 wire   [3:0] sd_rd;
 wire   [3:0] sd_wr;
 
-wire        sd_ack;
+wire  [3:0] sd_ack;
 wire  [8:0] sd_buff_addr;
 wire  [7:0] sd_buff_dout;
 wire  [7:0] sd_buff_din;
@@ -243,18 +299,19 @@ wire [63:0] img_size;
 
 wire [65:0] ps2_key;
 wire [64:0] sysrtc;
+wire forced_scandoubler;
+wire [21:0] gamma_bus;
+wire  [7:0] uart1_mode;
+wire [31:0] uart1_speed;
 
-hps_io #(.STRLEN($size(CONF_STR)>>3), .PS2DIV(600), .PS2WE(1), .VDNUM(4)) hps_io
+hps_io #(.CONF_STR(CONF_STR), .PS2DIV(600), .PS2WE(1), .VDNUM(4)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
 
-	.conf_str(CONF_STR),
-
 	.buttons(buttons),
 	.status(status),
-	
-	.TIMESTAMP(TIMESTAMP),
+	.status_menumask({en216p}),
 
 	.sd_lba(sd_lba),
 	.sd_rd(sd_rd),
@@ -269,6 +326,9 @@ hps_io #(.STRLEN($size(CONF_STR)>>3), .PS2DIV(600), .PS2WE(1), .VDNUM(4)) hps_io
 	.img_mounted(img_mounted),
 	.img_readonly(img_readonly),
 	.img_size(img_size),
+
+	.forced_scandoubler(forced_scandoubler),
+	.gamma_bus(gamma_bus),
 
 	.ioctl_download(ioctl_download),
 	.ioctl_index(ioctl_index),
@@ -321,6 +381,9 @@ assign AUDIO_S = 1;
 
 wire disk_led;
 
+wire [7:0] red, green, blue;
+wire HBlank, VBlank, HSync, VSync, ce_pix, vid_de;
+
 PC88MiSTer PC88_top
 (
 	.clk21m(clk_sys),
@@ -369,7 +432,7 @@ PC88MiSTer PC88_top
 	.mist_lba(sd_lba),
 	.mist_rd(sd_rd),
 	.mist_wr(sd_wr),
-	.mist_ack(sd_ack),
+	.mist_ack({sd_ack[3:2], |sd_ack[1:0], |sd_ack[1:0]}),
 
 	.mist_buffaddr(sd_buff_addr),
 	.mist_buffdout(sd_buff_dout),
@@ -382,13 +445,15 @@ PC88MiSTer PC88_top
 	.pDip({clkmode,2'b0,CDisk,c20L,c40C,MTSAVE,cBT,basicmode}),
 	.pPsw(2'b11),
 
-	.pVideoR(VGA_R),
-	.pVideoG(VGA_G),
-	.pVideoB(VGA_B),
-	.pVideoHS(VGA_HS),
-	.pVideoVS(VGA_VS),
-	.pVideoVEn(VGA_DE),
-	.pVideoClk(CE_PIXEL),
+	.pVideoR(red),
+	.pVideoG(green),
+	.pVideoB(blue),
+	.pVideoHS(HSync),
+	.pVideoVS(VSync),
+	.pVideoHB(HBlank),
+	.pVideoVB(VBlank),
+	.pVideoEN(vid_de),
+	.pVideoClk(ce_pix),
 
 	.pSndL(AUDIO_L),
 	.pSndR(AUDIO_R),
@@ -430,5 +495,59 @@ always @(posedge clk_sys) begin
 
 	if((old_mosi ^ SD_MOSI) || (old_miso ^ SD_MISO)) timeout <= 0;
 end
+
+////////////////////////////  VIDEO  ////////////////////////////////////
+
+
+assign VGA_SL = sl[1:0];
+reg en216p = 0;
+always @(posedge CLK_VIDEO) en216p <= ((HDMI_WIDTH == 1920) && (HDMI_HEIGHT == 1080) && !forced_scandoubler && !scale);
+
+wire vga_de;
+video_freak video_freak
+(
+	.*,
+	.VGA_DE_IN(vga_de),
+	.ARX((!ar) ? 12'd4 : (ar - 1'd1)),
+	.ARY((!ar) ? 12'd3 : 12'd0),
+	.CROP_SIZE(en216p ? 10'd216 : 10'd0),
+	.CROP_OFF(0),
+	.SCALE(status[4:3])
+);
+
+wire [2:0] scale = status[17:15];
+wire [2:0] sl = scale ? scale - 1'd1 : 3'd0;
+wire       scandoubler = (scale || forced_scandoubler);
+
+wire freeze = 0;
+wire freeze_sync;
+
+video_mixer #(640, 0, 1) mixer
+(
+	.CLK_VIDEO(CLK_VIDEO),
+	
+	.hq2x(scale == 1),
+	.scandoubler(scale || forced_scandoubler),
+	.gamma_bus(gamma_bus),
+
+	.ce_pix(ce_pix),
+	.R(red),
+	.G(green),
+	.B(blue),
+	.HSync(HSync),
+	.VSync(VSync),
+	.HBlank(HBlank),
+	.VBlank(VBlank),
+
+	.CE_PIXEL(CE_PIXEL),
+	.VGA_R(VGA_R),
+	.VGA_G(VGA_G),
+	.VGA_B(VGA_B),
+	.VGA_VS(VGA_VS),
+	.VGA_HS(VGA_HS),
+	.VGA_DE(vga_de)
+);
+
+
 
 endmodule

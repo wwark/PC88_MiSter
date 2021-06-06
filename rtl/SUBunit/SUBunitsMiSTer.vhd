@@ -47,7 +47,7 @@ port(
 	mist_lba		:out std_logic_vector(31 downto 0);
 	mist_rd			:out std_logic_vector(3 downto 0);
 	mist_wr			:out std_logic_vector(3 downto 0);
-	mist_ack		:in std_logic;
+	mist_ack		:in std_logic_vector(3 downto 0);
 
 	mist_buffaddr	:in std_logic_vector(8 downto 0);
 	mist_buffdout	:in std_logic_vector(7 downto 0);
@@ -526,7 +526,7 @@ port(
 	mist_lba		:out std_logic_vector(31 downto 0);
 	mist_rd			:out std_logic_vector(3 downto 0);
 	mist_wr			:out std_logic_vector(3 downto 0);
-	mist_ack		:in std_logic;
+	mist_ack		:in std_logic_vector(3 downto 0);
 
 	mist_buffaddr	:in std_logic_vector(8 downto 0);
 	mist_buffdout	:in std_logic_vector(7 downto 0);
