@@ -304,12 +304,10 @@ wire [21:0] gamma_bus;
 wire  [7:0] uart1_mode;
 wire [31:0] uart1_speed;
 
-hps_io #(.STRLEN($size(CONF_STR)>>3), .PS2DIV(600), .PS2WE(1), .VDNUM(4)) hps_io
+hps_io #(.CONF_STR(CONF_STR), .PS2DIV(600), .PS2WE(1), .VDNUM(4)) hps_io
 (
 	.clk_sys(clk_sys),
 	.HPS_BUS(HPS_BUS),
-
-	.conf_str(CONF_STR),
 
 	.buttons(buttons),
 	.status(status),
@@ -524,20 +522,30 @@ wire       scandoubler = (scale || forced_scandoubler);
 wire freeze = 0;
 wire freeze_sync;
 
-video_mixer #(.LINE_LENGTH(640), .HALF_DEPTH(0), .GAMMA(1)) video_mixer
+video_mixer #(768, 0, 1) mixer
 (
-	.*,
+	.CLK_VIDEO(CLK_VIDEO),
+	
+	.hq2x(scale == 1),
+	.scandoubler(scale || forced_scandoubler),
+	.gamma_bus(gamma_bus),
 
-	.VGA_DE(vga_de),
-	.hq2x(scale==1),
+	.ce_pix(ce_pix),
+	.R(red),
+	.G(gree),
+	.B(blue),
 	.HSync(HSync),
-	.HBlank(HBlank),
 	.VSync(VSync),
+	.HBlank(HBlank),
 	.VBlank(VBlank),
 
-	.R(red),
-	.G(green),
-	.B(blue)
+	.CE_PIXEL(CE_PIXEL),
+	.VGA_R(VGA_R),
+	.VGA_G(VGA_G),
+	.VGA_B(VGA_B),
+	.VGA_VS(VGA_VS),
+	.VGA_HS(VGA_HS),
+	.VGA_DE(vga_de)
 );
 
 
